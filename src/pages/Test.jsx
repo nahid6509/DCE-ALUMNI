@@ -165,6 +165,17 @@ const Test = () => {
                             </>
                         )}
                     </button>
+                    <div className='mt-6 text-center'>
+                        <button
+                            onClick={() => window.location.href = '/train'}
+                            className='inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-blue-600 
+                                      bg-blue-50 rounded-lg transition-all duration-200 
+                                      hover:bg-blue-100 hover:scale-[1.02] active:scale-[0.98]'
+                        >
+                            <ChevronRight className='h-4 w-4' />
+                            Go to Train Page
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

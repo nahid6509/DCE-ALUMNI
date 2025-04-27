@@ -79,9 +79,21 @@ const Train = () => {
     return (
         <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8'>
             <div className='max-w-4xl mx-auto'>
-                <div className='mb-8'>
-                    <h2 className='text-3xl font-bold text-gray-800'>Train Model</h2>
-                    <p className='text-gray-600 mt-2'>Upload your CSV file to train the chemical prediction model</p>
+                <div className='mb-8 flex justify-between items-center'>
+                    <div>
+                        <h2 className='text-3xl font-bold text-gray-800'>Train Model</h2>
+                        <p className='text-gray-600 mt-2'>Upload your CSV file to train the chemical prediction model</p>
+                    </div>
+                    <button
+                        onClick={() => window.location.href = '/test'}
+                        className='inline-flex items-center gap-2 px-8 py-4 text-base font-medium
+                                bg-blue-600 text-white rounded-lg transition-all duration-200
+                                hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]
+                                shadow-sm hover:shadow-md'
+                    >
+                        <CheckCircle className='h-5 w-5' />
+                        Predict Now
+                    </button>
                 </div>
                 
                 <div className='bg-white rounded-xl shadow-lg p-8 transition-all hover:shadow-xl'>
