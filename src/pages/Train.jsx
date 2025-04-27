@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle } from 'lucide-react';
+import { Upload, CheckCircle, Loader } from 'lucide-react';
 
 const Train = () => {
     const [file, setFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isTraining, setIsTraining] = useState(false);
+    const [trainingStatus, setTrainingStatus] = useState(null);
 
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];
@@ -32,6 +34,29 @@ const Train = () => {
             setFile(droppedFile);
         } else {
             alert('Please drop a valid CSV file');
+        }
+    };
+
+    const handleTraining = async () => {
+        try {
+            setIsTraining(true);
+            setTrainingStatus('Uploading file and training model...');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('http://localhost:5000/train', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+            setTrainingStatus(data.message);
+        } catch (error) {
+            console.error('Training error:', error);
+            setTrainingStatus('Error: Failed to train model');
+        } finally {
+            setIsTraining(false);
         }
     };
 
@@ -85,13 +110,32 @@ const Train = () => {
                     </div>
 
                     {file && (
-                        <div className='mt-6 flex justify-end'>
-                            <button
-                                className='px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
-                                        transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500'
-                            >
-                                Start Training
-                            </button>
+                        <div className='mt-6'>
+                            {trainingStatus && (
+                                <div className={`mb-4 p-4 rounded-md ${
+                                    trainingStatus.includes('Error') 
+                                    ? 'bg-red-50 text-red-700' 
+                                    : 'bg-blue-50 text-blue-700'
+                                }`}>
+                                    {isTraining && (
+                                        <Loader className="inline-block mr-2 h-4 w-4 animate-spin" />
+                                    )}
+                                    {trainingStatus}
+                                </div>
+                            )}
+                            <div className='flex justify-end'>
+                                <button
+                                    onClick={handleTraining}
+                                    disabled={isTraining}
+                                    className={`px-4 py-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+                                        ${isTraining 
+                                            ? 'bg-gray-400 cursor-not-allowed' 
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                        }`}
+                                >
+                                    {isTraining ? 'Training...' : 'Start Training'}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

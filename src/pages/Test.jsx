@@ -7,6 +7,9 @@ const Test = () => {
         conductivity: '',
         temperature: ''
     });
+    const [prediction, setPrediction] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -14,6 +17,34 @@ const Test = () => {
             ...prevState,
             [name]: value
         }));
+    };
+
+    const handleSubmit = async () => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            setPrediction(null);
+
+            const response = await fetch('http://localhost:5000/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to get prediction');
+            }
+
+            const data = await response.json();
+            setPrediction(data.chemical);
+        } catch (err) {
+            setError(err.message);
+            console.error('Prediction error:', err);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -86,11 +117,29 @@ const Test = () => {
                         />
                     </div>
 
+                    {error && (
+                        <div className='p-3 text-red-700 bg-red-100 rounded-md'>
+                            {error}
+                        </div>
+                    )}
+
+                    {prediction && (
+                        <div className='p-3 text-green-700 bg-green-100 rounded-md'>
+                            Predicted Chemical: {prediction}
+                        </div>
+                    )}
+
                     <button
-                        className='w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors'
-                        onClick={() => console.log(formData)}
+                        className={`w-full py-2 px-4 rounded-md transition-colors ${
+                            isLoading 
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}
+                        onClick={handleSubmit}
+                        disabled={isLoading || !formData.concentration || !formData.pH || 
+                                !formData.conductivity || !formData.temperature}
                     >
-                        Submit
+                        {isLoading ? 'Predicting...' : 'Predict Chemical'}
                     </button>
                 </div>
             </div>
