@@ -1,5 +1,21 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle, Loader } from 'lucide-react';
+import { Upload, CheckCircle, Loader, AlertCircle } from 'lucide-react';
+
+// Add these styles to your CSS or use a style tag in your HTML
+const styles = {
+  '@keyframes float': {
+    '0%, 100%': { transform: 'translateY(0)' },
+    '50%': { transform: 'translateY(-10px)' }
+  },
+  '@keyframes fadeIn': {
+    from: { opacity: 0, transform: 'translateY(10px)' },
+    to: { opacity: 1, transform: 'translateY(0)' }
+  },
+  '@keyframes scaleIn': {
+    from: { transform: 'scale(0.9)', opacity: 0 },
+    to: { transform: 'scale(1)', opacity: 1 }
+  }
+};
 
 const Train = () => {
     const [file, setFile] = useState(null);
@@ -61,15 +77,19 @@ const Train = () => {
     };
 
     return (
-        <div className='min-h-screen bg-gray-50 p-8'>
+        <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8'>
             <div className='max-w-4xl mx-auto'>
-                <h2 className='text-3xl font-bold text-gray-800 mb-8'>Train Model</h2>
+                <div className='mb-8'>
+                    <h2 className='text-3xl font-bold text-gray-800'>Train Model</h2>
+                    <p className='text-gray-600 mt-2'>Upload your CSV file to train the chemical prediction model</p>
+                </div>
                 
-                <div className='bg-white rounded-lg shadow-md p-6'>
+                <div className='bg-white rounded-xl shadow-lg p-8 transition-all hover:shadow-xl'>
                     <div
-                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-all
-                            ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
-                            ${file ? 'bg-green-50 border-green-500' : ''}`}
+                        className={`border-3 border-dashed rounded-xl p-12 text-center transition-all
+                            ${isDragging ? 'border-blue-500 bg-blue-50 scale-[0.99]' : 'border-gray-300'}
+                            ${file ? 'bg-green-50 border-green-500' : 'hover:border-gray-400'}
+                            transform duration-200 ease-in-out`}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
@@ -83,57 +103,76 @@ const Train = () => {
                         />
                         <label
                             htmlFor="fileInput"
-                            className='cursor-pointer'
+                            className='cursor-pointer block'
                         >
                             {!file ? (
-                                <>
-                                    <Upload className='mx-auto h-12 w-12 text-gray-400 mb-4' />
-                                    <p className='text-lg font-medium text-gray-700'>
-                                        Drag and drop your CSV file here, or click to browse
+                                <div className='space-y-4'>
+                                    <div className='bg-gray-50 p-4 rounded-full w-20 h-20 mx-auto'>
+                                        <Upload className='h-12 w-12 text-blue-500 mx-auto mt-1' />
+                                    </div>
+                                    <p className='text-xl font-medium text-gray-700'>
+                                        Drag and drop your CSV file here
                                     </p>
-                                    <p className='text-sm text-gray-500 mt-2'>
+                                    <p className='text-gray-500'>
+                                        or <span className='text-blue-500 hover:text-blue-600'>browse files</span>
+                                    </p>
+                                    <p className='text-sm text-gray-400 flex items-center justify-center gap-2'>
+                                        <AlertCircle className='h-4 w-4' />
                                         Only CSV files are accepted
                                     </p>
-                                </>
+                                </div>
                             ) : (
-                                <>
-                                    <CheckCircle className='mx-auto h-12 w-12 text-green-500 mb-4' />
-                                    <p className='text-lg font-medium text-green-700'>
+                                <div className='space-y-4'>
+                                    <div className='bg-green-50 p-4 rounded-full w-20 h-20 mx-auto'>
+                                        <CheckCircle className='h-12 w-12 text-green-500 mx-auto mt-1' />
+                                    </div>
+                                    <p className='text-xl font-medium text-green-700'>
                                         {file.name}
                                     </p>
-                                    <p className='text-sm text-green-600 mt-2'>
+                                    <p className='text-sm text-green-600 flex items-center justify-center gap-2'>
+                                        <CheckCircle className='h-4 w-4' />
                                         File selected successfully
                                     </p>
-                                </>
+                                </div>
                             )}
                         </label>
                     </div>
 
                     {file && (
-                        <div className='mt-6'>
+                        <div className='mt-8 space-y-6'>
                             {trainingStatus && (
-                                <div className={`mb-4 p-4 rounded-md ${
+                                <div className={`p-4 rounded-lg flex items-center gap-3 ${
                                     trainingStatus.includes('Error') 
-                                    ? 'bg-red-50 text-red-700' 
-                                    : 'bg-blue-50 text-blue-700'
+                                    ? 'bg-red-50 text-red-700 border border-red-200' 
+                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
                                 }`}>
-                                    {isTraining && (
-                                        <Loader className="inline-block mr-2 h-4 w-4 animate-spin" />
+                                    {isTraining ? (
+                                        <Loader className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <AlertCircle className="h-5 w-5" />
                                     )}
-                                    {trainingStatus}
+                                    <p className="font-medium">{trainingStatus}</p>
                                 </div>
                             )}
                             <div className='flex justify-end'>
                                 <button
                                     onClick={handleTraining}
                                     disabled={isTraining}
-                                    className={`px-4 py-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+                                    className={`px-6 py-3 rounded-lg transition-all duration-200 font-medium
+                                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
                                         ${isTraining 
                                             ? 'bg-gray-400 cursor-not-allowed' 
-                                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
                                         }`}
                                 >
-                                    {isTraining ? 'Training...' : 'Start Training'}
+                                    {isTraining ? (
+                                        <span className="flex items-center gap-2">
+                                            <Loader className="h-4 w-4 animate-spin" />
+                                            Training...
+                                        </span>
+                                    ) : (
+                                        'Start Training'
+                                    )}
                                 </button>
                             </div>
                         </div>
