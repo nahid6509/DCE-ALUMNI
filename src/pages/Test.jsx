@@ -165,7 +165,16 @@ const Test = () => {
                             </>
                         )}
                     </button>
-                    <div className='mt-6 text-center'>
+                    <div className='mt-6 flex justify-center gap-4'>
+                        <button
+                            onClick={() => window.location.href = '/'}
+                            className='inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-600 
+                                      bg-gray-50 rounded-lg transition-all duration-200 
+                                      hover:bg-gray-100 hover:scale-[1.02] active:scale-[0.98]'
+                        >
+                            <ChevronRight className='h-4 w-4' />
+                            Back to Home
+                        </button>
                         <button
                             onClick={() => window.location.href = '/train'}
                             className='inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-blue-600 
