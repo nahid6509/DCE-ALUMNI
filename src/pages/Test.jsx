@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AlertCircle, ChevronRight, Loader, Beaker } from 'lucide-react';
 
 const Test = () => {
     const [formData, setFormData] = useState({
@@ -48,98 +49,121 @@ const Test = () => {
     };
 
     return (
-        <div className='min-h-screen bg-gray-50 p-8'>
-            <div className='max-w-md mx-auto bg-white rounded-lg shadow-md p-6'>
-                <h2 className='text-2xl font-semibold text-gray-800 mb-6 text-center'>
-                    Chemical Measurements
-                </h2>
-                
-                <div className='space-y-4'>
-                    <div>
-                        <label htmlFor='concentration' className='block text-sm font-medium text-gray-700 mb-1'>
-                            Concentration (mol/L)
-                        </label>
-                        <input
-                            type='number'
-                            id='concentration'
-                            name='concentration'
-                            value={formData.concentration}
-                            onChange={handleChange}
-                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                            step='0.01'
-                        />
-                    </div>
+        <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8'>
+            <div className='max-w-2xl mx-auto'>
+                <div className='text-center mb-12'>
+                    <h2 className='text-3xl font-bold text-gray-800 mb-3'>
+                        Chemical Prediction
+                    </h2>
+                    <p className='text-gray-600 text-lg'>
+                        Enter the measurements below to predict the chemical compound
+                    </p>
+                </div>
 
-                    <div>
-                        <label htmlFor='pH' className='block text-sm font-medium text-gray-700 mb-1'>
-                            pH
-                        </label>
-                        <input
-                            type='number'
-                            id='pH'
-                            name='pH'
-                            value={formData.pH}
-                            onChange={handleChange}
-                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                            min='0'
-                            max='14'
-                            step='0.1'
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor='conductivity' className='block text-sm font-medium text-gray-700 mb-1'>
-                            Conductivity (μS/cm)
-                        </label>
-                        <input
-                            type='number'
-                            id='conductivity'
-                            name='conductivity'
-                            value={formData.conductivity}
-                            onChange={handleChange}
-                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                            step='0.1'
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor='temperature' className='block text-sm font-medium text-gray-700 mb-1'>
-                            Temperature (°C)
-                        </label>
-                        <input
-                            type='number'
-                            id='temperature'
-                            name='temperature'
-                            value={formData.temperature}
-                            onChange={handleChange}
-                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                            step='0.1'
-                        />
+                <div className='bg-white rounded-xl shadow-lg p-10'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-8'>
+                        {[
+                            {
+                                id: 'concentration',
+                                label: 'Concentration',
+                                unit: 'mol/L',
+                                step: '0.01',
+                                icon: <Beaker className='h-5 w-5 text-gray-400' />
+                            },
+                            {
+                                id: 'pH',
+                                label: 'pH Level',
+                                min: '0',
+                                max: '14',
+                                step: '0.1',
+                                icon: <ChevronRight className='h-5 w-5 text-gray-400' />
+                            },
+                            {
+                                id: 'conductivity',
+                                label: 'Conductivity',
+                                unit: 'μS/cm',
+                                step: '0.1',
+                                icon: <ChevronRight className='h-5 w-5 text-gray-400' />
+                            },
+                            {
+                                id: 'temperature',
+                                label: 'Temperature',
+                                unit: '°C',
+                                step: '0.1',
+                                icon: <ChevronRight className='h-5 w-5 text-gray-400' />
+                            }
+                        ].map((field) => (
+                            <div key={field.id} className='relative group'>
+                                <label 
+                                    htmlFor={field.id}
+                                    className='block text-sm font-medium text-gray-700 mb-2'
+                                >
+                                    {field.label} {field.unit && <span className='text-gray-500'>({field.unit})</span>}
+                                </label>
+                                <div className='relative flex items-center'>
+                                    <div className='absolute left-3 z-10'>
+                                        {field.icon}
+                                    </div>
+                                    <input
+                                        type='number'
+                                        id={field.id}
+                                        name={field.id}
+                                        value={formData[field.id]}
+                                        onChange={handleChange}
+                                        min={field.min}
+                                        max={field.max}
+                                        step={field.step}
+                                        className='w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg
+                                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                            transition-all duration-200
+                                            group-hover:border-blue-400'
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     {error && (
-                        <div className='p-3 text-red-700 bg-red-100 rounded-md'>
-                            {error}
+                        <div className='mt-8 p-4 rounded-lg bg-red-50 border border-red-200 flex items-center gap-3'>
+                            <AlertCircle className='h-5 w-5 text-red-400 flex-shrink-0' />
+                            <p className='text-red-700'>{error}</p>
                         </div>
                     )}
 
                     {prediction && (
-                        <div className='p-3 text-green-700 bg-green-100 rounded-md'>
-                            Predicted Chemical: {prediction}
+                        <div className='mt-8 p-6 rounded-lg bg-green-50 border border-green-200'>
+                            <h3 className='text-lg font-semibold text-green-700 mb-2'>
+                                Prediction Result
+                            </h3>
+                            <p className='text-green-600 text-lg'>
+                                The predicted chemical compound is: 
+                                <span className='font-bold ml-2'>{prediction}</span>
+                            </p>
                         </div>
                     )}
 
                     <button
-                        className={`w-full py-2 px-4 rounded-md transition-colors ${
-                            isLoading 
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-blue-500 hover:bg-blue-600 text-white'
-                        }`}
                         onClick={handleSubmit}
                         disabled={isLoading || !formData.concentration || !formData.pH || 
                                 !formData.conductivity || !formData.temperature}
+                        className={`w-full mt-8 py-4 px-6 rounded-lg transition-all duration-200
+                            flex items-center justify-center gap-3 text-lg font-medium
+                            ${isLoading 
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] text-white shadow-sm hover:shadow-md'
+                            }`}
                     >
-                        {isLoading ? 'Predicting...' : 'Predict Chemical'}
+                        {isLoading ? (
+                            <>
+                                <Loader className='h-5 w-5 animate-spin' />
+                                <span>Processing...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Beaker className='h-5 w-5' />
+                                <span>Predict Chemical</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
