@@ -13,10 +13,12 @@ const Test = () => {
     const [prediction, setPrediction] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [trainedModels, setTrainedModels] = useState([]);
 
-    // Load model when component mounts
+    // Load model and list models when component mounts
     useEffect(() => {
         loadModel();
+        listModels();
     }, []);
 
     const loadModel = async () => {
@@ -27,6 +29,45 @@ const Test = () => {
         } catch (err) {
             setError('Failed to load model');
             console.error('Model loading error:', err);
+        }
+    };
+
+    const listModels = async () => {
+        try {
+            const models = await tf.io.listModels();
+            setTrainedModels(Object.keys(models).map(key => ({
+                name: key,
+                size: models[key].size,
+                dateSaved: new Date(models[key].dateSaved).toLocaleDateString()
+            })));
+        } catch (err) {
+            console.error('Error listing models:', err);
+        }
+    };
+
+    const deleteModel = async (modelPath) => {
+        try {
+            if (!window.confirm('Are you sure you want to delete this model?')) {
+                return;
+            }
+            
+            setIsLoading(true);
+            await tf.io.removeModel(modelPath);
+            await listModels();
+            setError(null);
+            setPrediction(null);
+            setModel(null);
+            
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg';
+            successMessage.textContent = 'Model deleted successfully';
+            document.body.appendChild(successMessage);
+            setTimeout(() => successMessage.remove(), 3000);
+        } catch (err) {
+            setError('Failed to delete model: ' + err.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -251,6 +292,38 @@ const Test = () => {
                             <ChevronRight className='h-4 w-4' />
                             Go to Train Page
                         </button>
+                    </div>
+                    <div className='mt-8 p-6 rounded-lg bg-gray-50 border border-gray-200'>
+                        <h3 className='text-lg font-semibold text-gray-700 mb-4'>
+                            Trained Models ({trainedModels.length})
+                        </h3>
+                        {trainedModels.length === 0 ? (
+                            <p className='text-gray-500'>No trained models found</p>
+                        ) : (
+                            <div className='space-y-3'>
+                                {trainedModels.map((model, index) => (
+                                    <div key={index} 
+                                        className='flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200'>
+                                        <div>
+                                            <p className='text-sm font-medium text-gray-700'>
+                                                {model.name}
+                                            </p>
+                                            <p className='text-xs text-gray-500'>
+                                                Saved: {model.dateSaved}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => deleteModel(model.name)}
+                                            className='px-3 py-1 text-sm text-red-600 hover:text-red-700
+                                                     bg-red-50 hover:bg-red-100 rounded-md transition-colors
+                                                     focus:outline-none focus:ring-2 focus:ring-red-500'
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
