@@ -23,11 +23,16 @@ const Test = () => {
 
     const loadModel = async () => {
         try {
-            // Load your trained model
+            const models = await tf.io.listModels();
+            if (Object.keys(models).length === 0) {
+                setError('No model trained for prediction. Please train a model first.');
+                return;
+            }
+            
             const loadedModel = await tf.loadLayersModel('indexeddb://chemical-model');
             setModel(loadedModel);
         } catch (err) {
-            setError('Failed to load model');
+            setError('No model trained for prediction. Please train a model first.');
             console.error('Model loading error:', err);
         }
     };
@@ -252,11 +257,11 @@ const Test = () => {
 
                     <button
                         onClick={handleSubmit}
-                        disabled={isLoading || !formData.concentration || !formData.pH || 
+                        disabled={isLoading || !model || !formData.concentration || !formData.pH || 
                                 !formData.conductivity || !formData.temperature}
                         className={`w-full mt-8 py-4 px-6 rounded-lg transition-all duration-200
                             flex items-center justify-center gap-3 text-lg font-medium
-                            ${isLoading 
+                            ${(isLoading || !model)
                                 ? 'bg-gray-400 cursor-not-allowed'
                                 : 'bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] text-white shadow-sm hover:shadow-md'
                             }`}
@@ -265,6 +270,11 @@ const Test = () => {
                             <>
                                 <Loader className='h-5 w-5 animate-spin' />
                                 <span>Processing...</span>
+                            </>
+                        ) : !model ? (
+                            <>
+                                <AlertCircle className='h-5 w-5' />
+                                <span>Train Model First</span>
                             </>
                         ) : (
                             <>
