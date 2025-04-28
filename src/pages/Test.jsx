@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, ChevronRight, Loader, Beaker } from 'lucide-react';
+import * as tf from '@tensorflow/tfjs';
 
 const Test = () => {
+    const [model, setModel] = useState(null);
     const [formData, setFormData] = useState({
         concentration: '',
         pH: '',
@@ -11,6 +13,22 @@ const Test = () => {
     const [prediction, setPrediction] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    // Load model when component mounts
+    useEffect(() => {
+        loadModel();
+    }, []);
+
+    const loadModel = async () => {
+        try {
+            // Load your trained model
+            const loadedModel = await tf.loadLayersModel('indexeddb://chemical-model');
+            setModel(loadedModel);
+        } catch (err) {
+            setError('Failed to load model');
+            console.error('Model loading error:', err);
+        }
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -26,20 +44,66 @@ const Test = () => {
             setError(null);
             setPrediction(null);
 
-            const response = await fetch('http://localhost:5000/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to get prediction');
+            // Get feature stats and model from localStorage
+            const featureStats = JSON.parse(localStorage.getItem('featureStats'));
+            if (!featureStats) {
+                throw new Error('Model parameters not found. Please train the model first.');
             }
 
-            const data = await response.json();
-            setPrediction(data.chemical);
+            // Create features array with all 7 features matching the training input
+            const inputFeatures = [
+                // Basic normalized features
+                (parseFloat(formData.concentration) - featureStats.concentration.min) / 
+                    (featureStats.concentration.max - featureStats.concentration.min),
+                (parseFloat(formData.pH) - featureStats.pH.min) / 
+                    (featureStats.pH.max - featureStats.pH.min),
+                (parseFloat(formData.conductivity) - featureStats.conductivity.min) / 
+                    (featureStats.conductivity.max - featureStats.conductivity.min),
+                (parseFloat(formData.temperature) - featureStats.temperature.min) / 
+                    (featureStats.temperature.max - featureStats.temperature.min),
+                
+                // Engineered features matching training data
+                (formData.pH < 3 ? -2 : 
+                 formData.pH < 7 ? -1 : 
+                 formData.pH === 7 ? 0 : 
+                 formData.pH < 11 ? 1 : 2) / 2, // pHCategory normalized
+                
+                (formData.conductivity < 5 ? 0 : 
+                 formData.conductivity < 10 ? 1 : 
+                 formData.conductivity < 13 ? 2 :
+                 formData.conductivity < 15 ? 3 : 4) / 4, // conductivityRange normalized
+                 
+                (formData.concentration < 0.5 ? 0 :
+                 formData.concentration < 0.8 ? 1 :
+                 formData.concentration < 1.0 ? 2 : 3) / 3 // concentrationCategory normalized
+            ];
+
+            // Load model and make prediction
+            const model = await tf.loadLayersModel('indexeddb://chemical-model');
+            const inputTensor = tf.tensor2d([inputFeatures]);
+            const prediction = model.predict(inputTensor);
+            const predictionArray = await prediction.array();
+
+            // Get chemical classes from localStorage
+            const chemicalClasses = JSON.parse(localStorage.getItem('chemicalClasses'));
+            if (!chemicalClasses) {
+                throw new Error('Chemical classes not found. Please train the model first.');
+            }
+
+            // Find predicted class
+            const predictedIndex = predictionArray[0].indexOf(Math.max(...predictionArray[0]));
+            const confidence = predictionArray[0][predictedIndex] * 100;
+
+            setPrediction({
+                chemical: chemicalClasses[predictedIndex],
+                confidence: confidence.toFixed(2)
+            });
+
+            // Cleanup tensors
+            inputTensor.dispose();
+            prediction.dispose();
+            model.dispose();
+
         } catch (err) {
             setError(err.message);
             console.error('Prediction error:', err);
@@ -137,7 +201,10 @@ const Test = () => {
                             </h3>
                             <p className='text-green-600 text-lg'>
                                 The predicted chemical compound is: 
-                                <span className='font-bold ml-2'>{prediction}</span>
+                                <span className='font-bold ml-2'>{prediction.chemical}</span>
+                                <span className='text-green-500 text-sm ml-2'>
+                                    (Confidence: {prediction.confidence}%)
+                                </span>
                             </p>
                         </div>
                     )}

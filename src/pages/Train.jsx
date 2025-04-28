@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, CheckCircle, Loader, AlertCircle, ChevronRight } from 'lucide-react';
+import * as tf from '@tensorflow/tfjs';
+import * as Papa from 'papaparse'; // Add this for CSV parsing
 
 // Add these styles to your CSS or use a style tag in your HTML
 const styles = {
@@ -56,21 +58,197 @@ const Train = () => {
     const handleTraining = async () => {
         try {
             setIsTraining(true);
-            setTrainingStatus('Uploading file and training model...');
+            setTrainingStatus('Processing data and training model...');
 
-            const formData = new FormData();
-            formData.append('file', file);
+            // Read and parse CSV file
+            const text = await file.text();
+            const results = Papa.parse(text, { header: true, dynamicTyping: true });
+            
+            // Validate CSV structure
+            const requiredColumns = ['Concentration', 'pH', 'Conductivity', 'Temperature', 'Chemical'];
+            const headers = Object.keys(results.data[0] || {});
+            if (!requiredColumns.every(col => headers.includes(col))) {
+                throw new Error('CSV must include: Concentration, pH, Conductivity, Temperature, Chemical');
+            }
 
-            const response = await fetch('http://localhost:5000/train', {
-                method: 'POST',
-                body: formData,
+            // Filter out invalid rows
+            const data = results.data.filter(row => 
+                row.Concentration != null && 
+                row.pH != null && 
+                row.Conductivity != null && 
+                row.Temperature != null && 
+                row.Chemical != null
+            );
+
+            if (data.length === 0) {
+                throw new Error('No valid data found in CSV file');
+            }
+
+            // Standardize the data ordering by chemical type
+            data.sort((a, b) => a.Chemical.localeCompare(b.Chemical));
+
+            // Improve feature engineering
+            data.forEach(row => {
+                // Enhanced pH categorization (more granular)
+                row.pHCategory = row.pH < 3 ? -2 :  // Strong acid
+                                row.pH < 7 ? -1 :    // Weak acid
+                                row.pH === 7 ? 0 :   // Neutral
+                                row.pH < 11 ? 1 :    // Weak base
+                                2;                    // Strong base
+                
+                // Enhanced conductivity categorization
+                row.conductivityRange = row.Conductivity < 5 ? 0 : 
+                                      row.Conductivity < 10 ? 1 : 
+                                      row.Conductivity < 13 ? 2 :
+                                      row.Conductivity < 15 ? 3 : 4;
+                                      
+                // Add concentration category
+                row.concentrationCategory = row.Concentration < 0.5 ? 0 :
+                                          row.Concentration < 0.8 ? 1 :
+                                          row.Concentration < 1.0 ? 2 : 3;
             });
 
-            const data = await response.json();
-            setTrainingStatus(data.message);
+            // Add feature normalization
+            const featureStats = {
+                concentration: { min: Infinity, max: -Infinity },
+                pH: { min: Infinity, max: -Infinity },
+                conductivity: { min: Infinity, max: -Infinity },
+                temperature: { min: Infinity, max: -Infinity }
+            };
+
+            // Calculate min-max values
+            data.forEach(row => {
+                featureStats.concentration.min = Math.min(featureStats.concentration.min, row.Concentration);
+                featureStats.concentration.max = Math.max(featureStats.concentration.max, row.Concentration);
+                featureStats.pH.min = Math.min(featureStats.pH.min, row.pH);
+                featureStats.pH.max = Math.max(featureStats.pH.max, row.pH);
+                featureStats.conductivity.min = Math.min(featureStats.conductivity.min, row.Conductivity);
+                featureStats.conductivity.max = Math.max(featureStats.conductivity.max, row.Conductivity);
+                featureStats.temperature.min = Math.min(featureStats.temperature.min, row.Temperature);
+                featureStats.temperature.max = Math.max(featureStats.temperature.max, row.Temperature);
+            });
+
+            // Save normalization parameters for prediction
+            localStorage.setItem('featureStats', JSON.stringify(featureStats));
+
+            // Update features array to include new engineered features
+            const features = data.map(row => [
+                (row.Concentration - featureStats.concentration.min) / (featureStats.concentration.max - featureStats.concentration.min),
+                (row.pH - featureStats.pH.min) / (featureStats.pH.max - featureStats.pH.min),
+                (row.Conductivity - featureStats.conductivity.min) / (featureStats.conductivity.max - featureStats.conductivity.min),
+                (row.Temperature - featureStats.temperature.min) / (featureStats.temperature.max - featureStats.temperature.min),
+                row.pHCategory / 2, // Normalize to [-1, 1]
+                row.conductivityRange / 4, // Normalize to [0, 1]
+                row.concentrationCategory / 3 // Normalize to [0, 1]
+            ]);
+            
+            // Get unique chemical classes
+            const uniqueClasses = [...new Set(data.map(row => row.Chemical))];
+            console.log('Chemical classes:', uniqueClasses);
+            
+            // Save classes to localStorage for prediction
+            localStorage.setItem('chemicalClasses', JSON.stringify(uniqueClasses));
+            
+            // One-hot encode labels
+            const labels = data.map(row => {
+                const oneHot = new Array(uniqueClasses.length).fill(0);
+                const index = uniqueClasses.indexOf(row.Chemical);
+                oneHot[index] = 1;
+                return oneHot;
+            });
+
+            // Augment training data with small variations
+            const augmentedFeatures = [];
+            const augmentedLabels = [];
+
+            features.forEach((feature, idx) => {
+                // Add original data
+                augmentedFeatures.push(feature);
+                augmentedLabels.push(labels[idx]);
+                
+                // Add variations with small noise
+                for (let i = 0; i < 2; i++) {
+                    const noisyFeature = feature.map(val => 
+                        val + (Math.random() - 0.5) * 0.05
+                    );
+                    augmentedFeatures.push(noisyFeature);
+                    augmentedLabels.push(labels[idx]);
+                }
+            });
+
+            // Update model architecture with more capacity
+            const model = tf.sequential();
+            model.add(tf.layers.dense({
+                units: 256,
+                activation: 'relu',
+                inputShape: [7], // Updated for new feature count
+                kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
+            }));
+            model.add(tf.layers.batchNormalization());
+            model.add(tf.layers.dropout(0.3));
+
+            model.add(tf.layers.dense({
+                units: 128,
+                activation: 'relu',
+                kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
+            }));
+            model.add(tf.layers.batchNormalization());
+            model.add(tf.layers.dropout(0.2));
+
+            model.add(tf.layers.dense({
+                units: 64,
+                activation: 'relu',
+                kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
+            }));
+            model.add(tf.layers.batchNormalization());
+            model.add(tf.layers.dropout(0.1));
+
+            model.add(tf.layers.dense({
+                units: uniqueClasses.length,
+                activation: 'softmax'
+            }));
+
+            // Update training configuration
+            model.compile({
+                optimizer: tf.train.adam(0.0001),
+                loss: 'categoricalCrossentropy',
+                metrics: ['accuracy']
+            });
+
+            // Update training parameters
+            await model.fit(
+                tf.tensor2d(augmentedFeatures), 
+                tf.tensor2d(augmentedLabels), 
+                {
+                    epochs: 300,
+                    batchSize: 16,
+                    validationSplit: 0.2,
+                    shuffle: true,
+                    callbacks: {
+                        onEpochEnd: (epoch, logs) => {
+                            if (epoch % 10 === 0) {
+                                setTrainingStatus(
+                                    `Training... Epoch ${epoch + 1}/300 - ` +
+                                    `Loss: ${logs.loss.toFixed(4)} - ` +
+                                    `Accuracy: ${(logs.acc * 100).toFixed(2)}% - ` +
+                                    `Val Accuracy: ${(logs.val_acc * 100).toFixed(2)}%`
+                                );
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Save model
+            await model.save('indexeddb://chemical-model');
+            setTrainingStatus('Training completed! Model saved successfully.');
+
+            // Cleanup
+            model.dispose();
+
         } catch (error) {
             console.error('Training error:', error);
-            setTrainingStatus('Error: Failed to train model');
+            setTrainingStatus('Error: ' + error.message);
         } finally {
             setIsTraining(false);
         }
@@ -122,7 +300,7 @@ const Train = () => {
                                     </p>
                                 </div>
                             ) : (
-                                <div className='space-y-4'>
+                                <div lassName='space-y-4'>
                                     <div className='bg-green-50 p-4 rounded-full w-20 h-20 mx-auto'>
                                         <CheckCircle className='h-12 w-12 text-green-500 mx-auto mt-1' />
                                     </div>
