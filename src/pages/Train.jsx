@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle, Loader, AlertCircle, ChevronRight } from 'lucide-react';
 import * as tf from '@tensorflow/tfjs';
 import * as Papa from 'papaparse'; // Add this for CSV parsing
@@ -24,6 +24,7 @@ const Train = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [isTraining, setIsTraining] = useState(false);
     const [trainingStatus, setTrainingStatus] = useState(null);
+    const [trainedModels, setTrainedModels] = useState([]);
 
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];
@@ -54,6 +55,43 @@ const Train = () => {
             alert('Please drop a valid CSV file');
         }
     };
+
+    const listModels = async () => {
+        try {
+            const models = await tf.io.listModels();
+            setTrainedModels(Object.keys(models).map(key => ({
+                name: key,
+                size: models[key].size,
+                dateSaved: new Date(models[key].dateSaved).toLocaleDateString()
+            })));
+        } catch (err) {
+            console.error('Error listing models:', err);
+        }
+    };
+
+    const deleteModel = async (modelPath) => {
+        try {
+            if (!window.confirm('Are you sure you want to delete this model?')) {
+                return;
+            }
+            
+            await tf.io.removeModel(modelPath);
+            await listModels(); // Refresh the list
+            
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg';
+            successMessage.textContent = 'Model deleted successfully';
+            document.body.appendChild(successMessage);
+            setTimeout(() => successMessage.remove(), 3000);
+        } catch (err) {
+            console.error('Failed to delete model:', err);
+        }
+    };
+
+    useEffect(() => {
+        listModels();
+    }, []);
 
     const handleTraining = async () => {
         try {
@@ -378,6 +416,48 @@ const Train = () => {
                             Predict Now
                         </button>
                     </div>
+                </div>
+
+                <div className='mt-12 bg-white rounded-xl shadow-lg p-8'>
+                    <h3 className='text-xl font-bold text-gray-800 mb-6'>
+                        Trained Models ({trainedModels.length})
+                    </h3>
+                    {trainedModels.length === 0 ? (
+                        <div className='text-center py-8'>
+                            <p className='text-gray-500'>No trained models found</p>
+                            <p className='text-sm text-gray-400 mt-2'>
+                                Train a model by uploading a CSV file above
+                            </p>
+                        </div>
+                    ) : (
+                        <div className='space-y-4'>
+                            {trainedModels.map((model, index) => (
+                                <div 
+                                    key={index}
+                                    className='flex items-center justify-between p-4 bg-gray-50 
+                                             rounded-lg border border-gray-200 hover:border-gray-300 
+                                             transition-all duration-200'
+                                >
+                                    <div>
+                                        <h4 className='font-medium text-gray-700'>
+                                            {model.name.replace('indexeddb://', '')}
+                                        </h4>
+                                        <p className='text-sm text-gray-500'>
+                                            Trained on: {model.dateSaved}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => deleteModel(model.name)}
+                                        className='px-4 py-2 text-sm font-medium text-red-600 
+                                                 bg-red-50 rounded-lg hover:bg-red-100 
+                                                 transition-colors duration-200'
+                                    >
+                                        Delete Model
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
