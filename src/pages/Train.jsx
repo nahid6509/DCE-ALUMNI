@@ -102,16 +102,15 @@ const Train = () => {
             const text = await file.text();
             const results = Papa.parse(text, { header: true, dynamicTyping: true });
             
-            // Validate CSV structure
-            const requiredColumns = ['Concentration', 'pH', 'Conductivity', 'Temperature', 'Chemical'];
+            // Update CSV validation
+            const requiredColumns = ['pH', 'Conductivity', 'Temperature', 'Chemical'];
             const headers = Object.keys(results.data[0] || {});
             if (!requiredColumns.every(col => headers.includes(col))) {
-                throw new Error('CSV must include: Concentration, pH, Conductivity, Temperature, Chemical');
+                throw new Error('CSV must include: pH, Conductivity, Temperature, Chemical');
             }
 
             // Filter out invalid rows
             const data = results.data.filter(row => 
-                row.Concentration != null && 
                 row.pH != null && 
                 row.Conductivity != null && 
                 row.Temperature != null && 
@@ -125,7 +124,7 @@ const Train = () => {
             // Standardize the data ordering by chemical type
             data.sort((a, b) => a.Chemical.localeCompare(b.Chemical));
 
-            // Improve feature engineering
+            // Modify feature engineering to remove concentration category
             data.forEach(row => {
                 // Enhanced pH categorization (more granular)
                 row.pHCategory = row.pH < 3 ? -2 :  // Strong acid
@@ -139,16 +138,10 @@ const Train = () => {
                                       row.Conductivity < 10 ? 1 : 
                                       row.Conductivity < 13 ? 2 :
                                       row.Conductivity < 15 ? 3 : 4;
-                                      
-                // Add concentration category
-                row.concentrationCategory = row.Concentration < 0.5 ? 0 :
-                                          row.Concentration < 0.8 ? 1 :
-                                          row.Concentration < 1.0 ? 2 : 3;
             });
 
-            // Add feature normalization
+            // Update feature normalization to remove concentration
             const featureStats = {
-                concentration: { min: Infinity, max: -Infinity },
                 pH: { min: Infinity, max: -Infinity },
                 conductivity: { min: Infinity, max: -Infinity },
                 temperature: { min: Infinity, max: -Infinity }
@@ -156,8 +149,6 @@ const Train = () => {
 
             // Calculate min-max values
             data.forEach(row => {
-                featureStats.concentration.min = Math.min(featureStats.concentration.min, row.Concentration);
-                featureStats.concentration.max = Math.max(featureStats.concentration.max, row.Concentration);
                 featureStats.pH.min = Math.min(featureStats.pH.min, row.pH);
                 featureStats.pH.max = Math.max(featureStats.pH.max, row.pH);
                 featureStats.conductivity.min = Math.min(featureStats.conductivity.min, row.Conductivity);
@@ -169,15 +160,13 @@ const Train = () => {
             // Save normalization parameters for prediction
             localStorage.setItem('featureStats', JSON.stringify(featureStats));
 
-            // Update features array to include new engineered features
+            // Update features array to remove concentration
             const features = data.map(row => [
-                (row.Concentration - featureStats.concentration.min) / (featureStats.concentration.max - featureStats.concentration.min),
                 (row.pH - featureStats.pH.min) / (featureStats.pH.max - featureStats.pH.min),
                 (row.Conductivity - featureStats.conductivity.min) / (featureStats.conductivity.max - featureStats.conductivity.min),
                 (row.Temperature - featureStats.temperature.min) / (featureStats.temperature.max - featureStats.temperature.min),
                 row.pHCategory / 2, // Normalize to [-1, 1]
                 row.conductivityRange / 4, // Normalize to [0, 1]
-                row.concentrationCategory / 3 // Normalize to [0, 1]
             ]);
             
             // Get unique chemical classes
@@ -214,12 +203,12 @@ const Train = () => {
                 }
             });
 
-            // Update model architecture with more capacity
+            // Update model architecture
             const model = tf.sequential();
             model.add(tf.layers.dense({
                 units: 256,
                 activation: 'relu',
-                inputShape: [7], // Updated for new feature count
+                inputShape: [5], // Updated for new feature count (5 instead of 7)
                 kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
             }));
             model.add(tf.layers.batchNormalization());
