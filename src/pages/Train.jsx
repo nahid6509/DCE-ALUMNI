@@ -160,6 +160,21 @@ const Train = () => {
             // Save normalization parameters for prediction
             localStorage.setItem('featureStats', JSON.stringify(featureStats));
 
+            // Save representative samples from each chemical to localStorage for later comparison
+            const samplesByChemical = {};
+            data.forEach(row => {
+                if (!samplesByChemical[row.Chemical]) {
+                    samplesByChemical[row.Chemical] = [];
+                }
+                samplesByChemical[row.Chemical].push(row);
+            });
+
+            // Save all training samples to localStorage
+            localStorage.setItem('trainingData', JSON.stringify(data));
+
+            // Also save feature stats for normalization in prediction
+            localStorage.setItem('featureStats', JSON.stringify(featureStats));
+
             // Update features array to remove concentration
             const features = data.map(row => [
                 (row.pH - featureStats.pH.min) / (featureStats.pH.max - featureStats.pH.min),

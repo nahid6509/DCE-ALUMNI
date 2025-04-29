@@ -58,6 +58,12 @@ const Test = () => {
                 throw new Error('Model parameters not found. Please train the model first.');
             }
 
+            // Get training data samples from localStorage
+            const trainingData = JSON.parse(localStorage.getItem('trainingData'));
+            if (!trainingData || !trainingData.length) {
+                console.warn('Training data not found in localStorage. Using model prediction only.');
+            }
+
             // Create more advanced features that better separate chemicals
             const pH = parseFloat(formData.pH);
             const conductivity = parseFloat(formData.conductivity);
@@ -103,9 +109,131 @@ const Test = () => {
             // Apply domain knowledge rules for specific chemicals
             let finalPredictions = [...predictionArray[0]];
             
-            // Strong override for NaOH: if pH > 12.4 and conductivity < 7
+            // If we have training data, use similarity-based prediction enhancement
+            if (trainingData && trainingData.length) {
+                console.log("Enhancing prediction with training data comparison");
+                
+                // Calculate similarity to each training sample
+                const similarities = trainingData.map(sample => {
+                    // Calculate normalized Euclidean distance for each feature
+                    const pHDiff = Math.abs(pH - sample.pH) / (featureStats.pH.max - featureStats.pH.min);
+                    const condDiff = Math.abs(conductivity - sample.Conductivity) / 
+                        (featureStats.conductivity.max - featureStats.conductivity.min);
+                    const tempDiff = Math.abs(temperature - sample.Temperature) / 
+                        (featureStats.temperature.max - featureStats.temperature.min);
+                    
+                    // Equal weighting for all three parameters
+                    const distance = Math.sqrt((pHDiff * pHDiff + condDiff * condDiff + tempDiff * tempDiff) / 3);
+                    const similarity = 1 / (1 + distance); // Convert distance to similarity score (0-1)
+                    
+                    return {
+                        chemical: sample.Chemical,
+                        similarity,
+                        distance,
+                        sample
+                    };
+                });
+                
+                // Sort by similarity (most similar first)
+                similarities.sort((a, b) => b.similarity - a.similarity);
+                
+                // Log the closest matches
+                console.log("Closest training samples:");
+                similarities.slice(0, 5).forEach((match, i) => {
+                    console.log(`${i+1}. ${match.chemical} - Similarity: ${(match.similarity * 100).toFixed(2)}% - ` +
+                               `pH: ${match.sample.pH}, Conductivity: ${match.sample.Conductivity}, ` +
+                               `Temperature: ${match.sample.Temperature}`);
+                });
+                
+                // Get the 3 most similar samples
+                const topMatches = similarities.slice(0, 3);
+                
+                // Count chemical occurrences in top matches
+                const chemicalCounts = {};
+                topMatches.forEach(match => {
+                    chemicalCounts[match.chemical] = (chemicalCounts[match.chemical] || 0) + match.similarity;
+                });
+                
+                // Find the chemical with highest weighted count
+                const topChemical = Object.entries(chemicalCounts)
+                    .sort((a, b) => b[1] - a[1])[0][0];
+                    
+                console.log(`Top chemical based on similarity: ${topChemical}`);
+                
+                // Check if top chemical is different from model prediction
+                const topModelChemical = chemicalClasses[finalPredictions.indexOf(Math.max(...finalPredictions))];
+                const topModelConfidence = Math.max(...finalPredictions);
+                
+                // Calculate similarity confidence
+                const totalSim = topMatches.reduce((sum, match) => sum + match.similarity, 0);
+                const topChemicalConfidence = chemicalCounts[topChemical] / totalSim;
+                
+                console.log(`Model prediction: ${topModelChemical} (${(topModelConfidence * 100).toFixed(2)}%)`);
+                console.log(`Similarity prediction: ${topChemical} (${(topChemicalConfidence * 100).toFixed(2)}%)`);
+                
+                // If the top match is very similar (>80%), and different from model prediction,
+                // or if model confidence is low (<60%), boost the similar chemical
+                if (topChemical !== topModelChemical && 
+                    (topMatches[0].similarity > 0.8 || topModelConfidence < 0.6)) {
+                    
+                    const matchIndex = chemicalClasses.findIndex(c => c.includes(topChemical));
+                    if (matchIndex !== -1) {
+                        // Boost the confidence based on similarity
+                        const boostFactor = Math.min(2.0, 1.0 + topMatches[0].similarity);
+                        finalPredictions[matchIndex] *= boostFactor;
+                        
+                        // Normalize probabilities
+                        const sum = finalPredictions.reduce((a, b) => a + b, 0);
+                        finalPredictions = finalPredictions.map(p => p / sum);
+                        
+                        console.log(`Boosted ${topChemical} confidence by factor: ${boostFactor.toFixed(2)}`);
+                    }
+                }
+                
+                // Special case: If best match is extremely similar (>0.95), override prediction
+                if (topMatches[0].similarity > 0.95) {
+                    const exactMatch = topMatches[0];
+                    console.log(`Found extremely close match: ${exactMatch.chemical} with ${(exactMatch.similarity * 100).toFixed(2)}% similarity`);
+                    
+                    const matchIndex = chemicalClasses.findIndex(c => c.includes(exactMatch.chemical));
+                    if (matchIndex !== -1) {
+                        finalPredictions = finalPredictions.map((v, i) => 
+                            i === matchIndex ? 0.95 : 0.05 / (finalPredictions.length - 1)
+                        );
+                        console.log(`Overriding prediction with exact match: ${exactMatch.chemical}`);
+                    }
+                }
+                
+                // Special case for NaCl vs KCl which can be similar
+                if (pH > 7.0 && pH < 7.4) {
+                    // Find the closest matches in this pH range
+                    const closeMatches = similarities.filter(match => 
+                        Math.abs(match.sample.pH - pH) < 0.1 &&
+                        Math.abs(match.sample.Conductivity - conductivity) < 0.3
+                    );
+                    
+                    if (closeMatches.length > 0) {
+                        // Use the closest match in this specific range
+                        const bestMatch = closeMatches[0];
+                        const matchIndex = chemicalClasses.findIndex(c => c.includes(bestMatch.chemical));
+                        
+                        if (matchIndex !== -1) {
+                            // Boost this chemical's confidence
+                            finalPredictions[matchIndex] *= 1.3;
+                            
+                            // Normalize probabilities
+                            const sum = finalPredictions.reduce((a, b) => a + b, 0);
+                            finalPredictions = finalPredictions.map(p => p / sum);
+                            
+                            console.log(`Applied special case for pH ~7.2 range, boosting ${bestMatch.chemical}`);
+                        }
+                    }
+                }
+            }
+            
+            // Keep the NaOH rule for high pH, which is generally reliable
             if (pH > 12.4 && conductivity < 7) {
-                const naohIndex = chemicalClasses.indexOf('NaOH');
+                const naohIndex = chemicalClasses.findIndex(c => c.includes('NaOH'));
                 if (naohIndex !== -1) {
                     // Apply strong NaOH rule - make NaOH the clear winner
                     finalPredictions = finalPredictions.map((v, i) => 
@@ -125,7 +253,7 @@ const Test = () => {
             });
 
             // Debug information - log top 3 predictions
-            console.log("Top predictions:");
+            console.log("Final predictions:");
             const topPredictions = [...finalPredictions]
                 .map((prob, idx) => ({ prob, chemical: chemicalClasses[idx] }))
                 .sort((a, b) => b.prob - a.prob)
