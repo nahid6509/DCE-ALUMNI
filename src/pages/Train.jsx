@@ -262,7 +262,7 @@ const Train = () => {
                 tf.tensor2d(augmentedFeatures), 
                 tf.tensor2d(augmentedLabels), 
                 {
-                    epochs: 300,
+                    epochs: 500,
                     batchSize: 16,
                     validationSplit: 0.2,
                     shuffle: true,
@@ -270,7 +270,7 @@ const Train = () => {
                         onEpochEnd: (epoch, logs) => {
                             if (epoch % 10 === 0) {
                                 setTrainingStatus(
-                                    `Training... Epoch ${epoch + 1}/300 - ` +
+                                    `Training... Epoch ${epoch + 1}/500 - ` +
                                     `Loss: ${logs.loss.toFixed(4)} - ` +
                                     `Accuracy: ${(logs.acc * 100).toFixed(2)}% - ` +
                                     `Val Accuracy: ${(logs.val_acc * 100).toFixed(2)}%`
